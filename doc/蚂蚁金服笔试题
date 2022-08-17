@@ -1,0 +1,226 @@
+
+//题目1
+//有一个很大的List<String>，有1000-2000个元素[a,bc,de,fgx,xx,x32,3ee,aa,a12,12,312,31A,SSD2…]，
+//写个程序统计下每个字符串出现的次数，并且按字符串出现的次数排序（使用多线程处理）
+ public class Case1 {
+    public static void main(String[] args) throws Exception {
+        List list = new ArrayList();
+        list.add("a");
+        list.add("b");
+        list.add("b");
+        list.add("c");
+        list.add("c");
+        list.add("c");
+        list.add("f");
+        Map<String, Long> map = sort(list);
+    }
+
+    public static Map<String, Long> sort(List<String> list) throws Exception {
+        List list1 = new ArrayList();
+        List list2 = new ArrayList();
+        for (int i = 0; i < list.size(); i++) {
+            if (i / 2 == 0) {
+                list1.add(list.get(i));
+            } else {
+                list2.add(list.get(i));
+            }
+        }
+
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        List<Callable<Map<String, Long>>> callableList = new ArrayList<>();
+        callableList.add(() -> buildMap(list1));
+        callableList.add(() -> buildMap(list2));
+        List<Future<Map<String, Long>>> futureList = executorService.invokeAll(callableList);
+
+        Map<String, Long> resultmap = new HashMap<>();
+        for (Future<Map<String, Long>> future : futureList) {
+            Map<String, Long> map = future.get();
+            resultmap.putAll(map);
+        }
+
+        return resultmap;
+    }
+
+
+    public static Map<String, Long> buildMap(List<String> list) {
+        Map<String, Long> map = new HashMap<>();
+        for (int i = 0; i < list.size(); i++) {
+            String str = list.get(i);
+            Long value = map.get(str);
+            //包含此key
+            if (value != null) {
+                map.put(str, value + 1);
+            } else {
+                map.put(str, 1l);
+            }
+        }
+
+        return map;
+    }
+}
+
+
+//题目2
+//有这么一个多线程场景问题：有三个线程，线程1执行完成之后线程2执行，线程2执行完之后线程3执行，
+//线程3执行完成之后线程1执行，整体循环50次，写程序实现。
+public class Case2 {
+    private volatile int stag = 1;
+    private AtomicInteger atomicInteger = new AtomicInteger(0);
+
+    public static void main(String[] args) {
+        new Case2().threeThreadloopRun();
+    }
+
+    public void threeThreadloopRun() {
+        new Thread(() -> {
+            while (true && stag != 0) {
+                if (stag == 1) {
+                    if (atomicInteger.get() > 50) {
+                        stag = 0;
+                        break;
+                    }
+                    System.out.println("thread-1----" + atomicInteger.get());
+                    atomicInteger.incrementAndGet();
+                    stag = 2;
+                }
+            }
+        }).start();
+
+        new Thread(() -> {
+            while (true && stag != 0) {
+                if (stag == 2) {
+                    System.out.println("thread-2");
+                    stag = 3;
+                }
+            }
+        }).start();
+
+        new Thread(() -> {
+            while (true && stag != 0) {
+                if (stag == 3) {
+                    System.out.println("thread-3");
+                    stag = 1;
+                }
+            }
+        }).start();
+    }
+}
+
+
+
+//题目3
+//通过遍历删除集合里所有含数字数据，比如a1,1a,a1a,aaaaa1等
+public class Case3 {
+    public static void main(String[] args) {
+        List list = new ArrayList();
+        list.add("a1");
+        list.add("b222");
+        list.add("bfdasfd");
+
+        List<String> stringList = filterContainNumber(list);
+    }
+
+
+    public static List<String> filterContainNumber(List<String> list) {
+        return list.stream().filter((str) -> {
+            char[] charArray = str.toCharArray();
+            for (char c : charArray) {
+                if (Character.isDigit(c)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }).collect(Collectors.toList());
+    }
+}
+
+
+//题目4
+//老师有a,b,c,d,e五个任务，分别需要5个同学A，B，C，D，E去处理。
+//已知ABCDE五个同学分别只能处理他自己对应的任务（对应关系是a->A，b->B，c->C….）。 
+//老师分配任务只会把任务都交给A，A只会处理自己的任务，不会处理的任务都会交给B….B交给C，
+//依次类推完成老师的所有任务。写个程序模拟这样的任务处理场景
+
+public class Case4 {
+    public static void main(String[] args) {
+        List list = new ArrayList<>(5);
+        list.add("C");
+        list.add("A");
+        list.add("B");
+        list.add("D");
+        list.add("E");
+
+        new Case4().dispatcher(list);
+    }
+
+    public void dispatcher(List<String> list) {
+        ListNode head = buildChain();
+        for (String taskName : list) {
+            ListNode currNode = head;
+            while (currNode != null) {
+                if (Objects.equals(currNode.getTaskName(), taskName)) {
+                    System.out.println(taskName + "--处理人是--：" + currNode.getStudentName());
+                    break;
+                } else {
+                    System.out.println( "-------"+currNode.getStudentName()+ "------->：" + currNode.nextNode.getStudentName());
+                    currNode = currNode.nextNode;
+                }
+            }
+        }
+
+    }
+
+    public ListNode buildChain() {
+        ListNode nodeA = new ListNode("S_A", "A");
+        ListNode nodeB = new ListNode("S_B", "B");
+        ListNode nodeC = new ListNode("S_C", "C");
+        ListNode nodeD = new ListNode("S_D", "D");
+        ListNode nodeE = new ListNode("S_E", "E");
+        nodeD.nextNode = nodeE;
+        nodeC.nextNode = nodeD;
+        nodeB.nextNode = nodeC;
+        nodeA.nextNode = nodeB;
+        return nodeA;
+    }
+
+    class ListNode {
+        private String studentName;
+        private String taskName;
+        private ListNode nextNode;
+
+        public ListNode(String studentName, String taskName) {
+            this.studentName = studentName;
+            this.taskName = taskName;
+        }
+
+        public String getStudentName() {
+            return studentName;
+        }
+
+        public void setStudentName(String studentName) {
+            this.studentName = studentName;
+        }
+
+        public String getTaskName() {
+            return taskName;
+        }
+
+        public void setTaskName(String taskName) {
+            this.taskName = taskName;
+        }
+
+        public ListNode getNextNode() {
+            return nextNode;
+        }
+
+        public void setNextNode(ListNode nextNode) {
+            this.nextNode = nextNode;
+        }
+    }
+}
+
+
+
+
+
